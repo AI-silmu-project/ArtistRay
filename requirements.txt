@@ -1,0 +1,7 @@
+torch
+cython
+diffusers
+transformers
+accelerate
+scikit-image
+opencv-python
