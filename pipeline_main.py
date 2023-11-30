@@ -38,6 +38,7 @@ capture.set(cv2.CAP_PROP_FOCUS,FOCUS)
 last_fps_time = None
 frame_count = 0
 recorded_fps = 0
+opacity = 0.5
 
 def run_BLD(prompt: str, init_image_path: str, mask_path: str, output_path: str, batch_size: int = 3, ):
     print('Creating Images...')
@@ -85,12 +86,6 @@ if __name__ == "__main__":
     to_paste = None
     ref_crop = None
     ref_frame = None
-    kp, des = None, None
-
-    orb = cv2.SIFT.create()
-    matcher = cv2.BFMatcher()
-
-    rever = False
 
     while True:
         ret, frame = capture.read()
@@ -112,49 +107,29 @@ if __name__ == "__main__":
                 
                 location = state['ploygon'].flatten()
                 mask = state['mask'] > state['p'].seg_thr
-                frame[:, :, 2] = (mask > 0) * 255 + (mask == 0) * frame[:, :, 2]
-                center = np.intp(location.reshape((-1, 2)).mean(0))
-                if center[1]<= CROP/2:
-                    ymin = 0
-                    ymax = CROP
-                elif center[1]>= H-CROP//2:
-                    ymax = H
-                    ymin = int(H-CROP)
-                else:
-                    ymin = int(center[1] - CROP/2)
-                    ymax = int(center[1] + CROP/2)
-                if center[0]<= CROP/2:
-                    xmin = 0
-                    xmax = CROP
-                elif center[0]>= W-CROP/2:
-                    xmax = W
-                    xmin = int(W-CROP)
-                else:
-                    xmin = int(center[0] - CROP/2)
-                    xmax = int(center[0] + CROP/2)
-                #cv2.circle(frame,center,3,(0,255,0),3)
-                cv2.polylines(frame, [np.intp(location).reshape((-1, 1, 2))[0:2]], False, (150, 0, 0), 3)
-                cv2.polylines(frame, [np.intp(location).reshape((-1, 1, 2))[1:3]], False, (200, 0, 0), 3)
-                cv2.polylines(frame, [np.intp(location).reshape((-1, 1, 2))[2:4]], False, (255, 0, 0), 3)
                 
-                #cv2.polylines(frame, [np.array([[xmin,ymin],[xmin,ymax],[xmax,ymax],[xmax,ymin]])], True, (0, 255, 0), 3)
-                if ref_crop is not None:
+                center = np.intp(location.reshape((-1, 2)).mean(0))
+                
+                if ref_frame is not None:
                     loca = location.reshape(-1, 2)
+
+                    cnt = location.reshape((-1, 1, 2))
+                    rect = cv2.minAreaRect(cnt)
+                    box = cv2.boxPoints(rect)
+                    box = np.intp(box)
+                    height,width = to_paste.shape[:2]
+                    src_pts = box.astype("float32")
+                    dst_pts = np.array([[0, 0],
+                                        [width-1, 0],
+                                        [width-1, height-1],
+                                        [0, height-1],], dtype="float32")
+                    M = cv2.getPerspectiveTransform(dst_pts, src_pts)
+                    warped2 = cv2.warpPerspective(to_paste, M, (W,H),borderMode=cv2.BORDER_TRANSPARENT)
                     
-
-
-                    diff1 = loca[1] - loca[0]
-                    diff1 = diff1.astype(float)
-                    diff2 = loca[0] - loca[-1]
-                    diff2 = diff2.astype(float)
-                    val1 = lpf1.filter(np.arctan2(-diff1[1], diff1[0])/np.pi * 180.)
-                    val2 = lpf2.filter(np.arctan2(-diff2[1], diff2[0])/np.pi * 180.)
-                    centx = int(lpfx.filter(center[0]))
-                    centy = int(lpfy.filter(center[1]))
-                    print(val1, val2)
-                    cv2.circle(frame,[centx,centy],3,(0,255,0),3)
-                    hh,ww,_ = to_paste.shape
-                    np.copyto(frame[centy-hh//2: centy-hh//2+hh, centx-ww//2:centx-ww//2+ww], to_paste[:,:,:3], where=(np.stack([to_paste[:,:,3]]*3,-1)!=0) )
+                    np.copyto(frame, (frame*(1.-opacity) + warped2[:,:,:3]*opacity).astype(np.uint8), where=(np.stack([warped2[:,:,3]]*3,-1)>0) )
+                else:
+                    frame[:, :, 2] = (mask > 0) * 255 + (mask == 0) * frame[:, :, 2]
+                    cv2.polylines(frame, [np.intp(location).reshape((-1, 1, 2))], False, (150, 0, 0), 3)
 
             # information
             frame = cv2.putText(frame,f'{int(recorded_fps)} FPS',(0,14),cv2.FONT_HERSHEY_SIMPLEX,0.5,(255,255,255),1,cv2.LINE_AA)
@@ -203,9 +178,11 @@ if __name__ == "__main__":
                     xmax = int(target_pos[0] + CROP/2)
 
                 cv2.imwrite('outputs/image.png', frame)
-                cv2.imwrite('outputs/mask.png', init_mask.astype(np.uint8))
                 cv2.imwrite('outputs/image_roi.png', frame[y:y+h, x:x+w])
+                cv2.imwrite('outputs/mask.png', init_mask.astype(np.uint8))
                 cv2.imwrite('outputs/mask_roi.png', init_mask.astype(np.uint8)[y:y+h, x:x+w])
+
+                
 
                 # BLD
                 bld_mask = init_mask[ymin:ymax, xmin:xmax]
@@ -215,21 +192,35 @@ if __name__ == "__main__":
                 prompt = input('프롬프트를 입력해주세요: ')
                 run_BLD(prompt,'outputs/image_bldin.png','outputs/mask_bldin.png','outputs/image_bldout.png' , 1)
                 
-                # Fusion
                 bld_image = cv2.imread('outputs/image_bldout.png')
                 ref_frame = np.copy(frame)
-                ref_crop = ref_frame[ymin:ymax,xmin:xmax]
-                kp,des = orb.detectAndCompute(ref_frame, None)
                 frame[ymin:ymax, xmin:xmax] = bld_image
-                cv2.imwrite('outputs/output_overlay.png',frame)
-
                 set_image = cv2.cvtColor(frame,cv2.COLOR_BGR2BGRA)
                 set_image[:,:, 3] = init_mask
+                
+                # 이제 frame에 그게 덧씌워짐
+                # set_image는 투명하게 마스킹된거
+                cv2.imwrite('outputs/output_overlay.png',frame)
                 cv2.imwrite('outputs/output_mask.png', set_image)
                 cv2.imwrite('outputs/output_roi.png', set_image[y:y+h, x:x+w, :])
-                to_paste = set_image[y:y+h, x:x+w, :]
                 
-            # focus control
+
+                cnt = state['ploygon'].flatten().reshape((-1, 1, 2))
+                rect = cv2.minAreaRect(cnt)
+                box = cv2.boxPoints(rect)
+                box = np.intp(box)
+                width = int(rect[1][1])
+                height = int(rect[1][0])
+                src_pts = box.astype("float32")
+                dst_pts = np.array([[0, 0],
+                                    [width-1, 0],
+                                    [width-1, height-1],
+                                    [0, height-1],], dtype="float32")
+                M = cv2.getPerspectiveTransform(src_pts, dst_pts)
+                to_paste = cv2.warpPerspective(set_image, M, (width,height))
+                
+                
+            # 초점
             elif a == ord('s'):
                 FOCUS+=15
                 if FOCUS>255:
@@ -241,7 +232,7 @@ if __name__ == "__main__":
                     FOCUS=0
                 capture.set(cv2.CAP_PROP_FOCUS,FOCUS)    
             
-            # exposure control
+            # 노출
             elif a == ord('d'):
                 EXPO+=1
                 if EXPO>=-2:
