@@ -18,6 +18,7 @@ from tools.test import *
 # Camera Settings --------------------------------------------------------------
 H = 720
 W = 1280
+CROP = 512
 FOCUS = 0
 EXPO = -6
 capture = cv2.VideoCapture(1,cv2.CAP_DSHOW)
@@ -25,7 +26,7 @@ capture.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter.fourcc('m','j','p','g'))
 capture.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter.fourcc('M','J','P','G'))
 capture.set(cv2.CAP_PROP_FPS, 30)
 capture.set(cv2.CAP_PROP_FRAME_WIDTH, W)
-capture.set(cv2.CAP_PROP_FRAME_HEIGHT, H)q
+capture.set(cv2.CAP_PROP_FRAME_HEIGHT, H)
 capture.set(cv2.CAP_PROP_AUTO_EXPOSURE,0)
 capture.set(cv2.CAP_PROP_AUTOFOCUS,0)
 capture.set(cv2.CAP_PROP_AUTO_WB, 0)
@@ -57,9 +58,11 @@ if __name__ == "__main__":
     siammask.eval().to(device)
 
 
-    cv2.namedWindow("SiamMask",cv2.WINDOW_AUTOSIZE)
+    cv2.namedWindow("SiamMask", cv2.WINDOW_AUTOSIZE)
 
     selected = False
+    set_image = None
+
     while True:
         ret, frame = capture.read()
         
@@ -108,13 +111,48 @@ if __name__ == "__main__":
 
                 init_mask = (state['mask'] > state['p'].seg_thr) * 255
 
-                cv2.imwrite('image.png', frame[y:y+h, x:x+w])
-                cv2.imwrite('mask.png', init_mask.astype(np.uint8)[y:y+h, x:x+w])
                 
+                if target_pos[1]<= CROP/2:
+                    ymin = 0
+                    ymax = CROP
+                elif target_pos[1]>= H-CROP//2:
+                    ymax = H
+                    ymin = int(H-CROP/2)
+                else:
+                    ymin = int(target_pos[1] - CROP/2)
+                    ymax = int(target_pos[1] + CROP/2)
+                if target_pos[0]<= CROP/2:
+                    xmin = 0
+                    xmax = CROP
+                elif target_pos[0]>= W-CROP/2:
+                    xmax = W
+                    xmin = int(W-CROP/2)
+                else:
+                    xmin = int(target_pos[0] - CROP/2)
+                    xmax = int(target_pos[0] + CROP/2)
+
+                cv2.imwrite('outputs/image.png', frame)
+                cv2.imwrite('outputs/mask.png', init_mask.astype(np.uint8))
+                cv2.imwrite('outputs/image_roi.png', frame[y:y+h, x:x+w])
+                cv2.imwrite('outputs/mask_roi.png', init_mask.astype(np.uint8)[y:y+h, x:x+w])
+
+                # BLD
+                bld_mask = init_mask[ymin:ymax, xmin:xmax]
+                assert bld_mask.shape == (CROP,CROP)
+                cv2.imwrite('outputs/image_bldin.png', frame[ymin:ymax, xmin:xmax])
+                cv2.imwrite('outputs/mask_bldin.png', bld_mask)
                 prompt = input('프롬프트를 입력해주세요: ')
+                run_BLD(prompt,'outputs/image_bldin.png','outputs/mask_bldin.png','outputs/image_bldout.png' , 1)
                 
-                run_BLD(prompt,'./image.png','./mask.png','./outputs/output.png' )
-            
+                # Fusion
+                bld_image = cv2.imread('outputs/image_bldout.png')
+                frame[ymin:ymax, xmin:xmax] = bld_image
+                cv2.imwrite('outputs/output_overlay.png',frame)
+
+                set_image = cv2.cvtColor(frame,cv2.COLOR_BGR2BGRA)
+                set_image[:,:, 3] = init_mask
+                cv2.imwrite('outputs/output_mask.png', set_image)
+                cv2.imwrite('outputs/output_roi.png', set_image[y:y+h, x:x+w, :])
             # focus control
             elif a == ord('s'):
                 FOCUS+=15
