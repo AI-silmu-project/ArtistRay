@@ -82,7 +82,7 @@ if __name__ == "__main__":
 
     selected = False
     set_image = None
-    ref_xy = [None,None]
+    to_paste = None
     ref_crop = None
     ref_frame = None
     kp, des = None, None
@@ -153,6 +153,8 @@ if __name__ == "__main__":
                     centy = int(lpfy.filter(center[1]))
                     print(val1, val2)
                     cv2.circle(frame,[centx,centy],3,(0,255,0),3)
+                    hh,ww,_ = to_paste.shape
+                    np.copyto(frame[centy-hh//2: centy-hh//2+hh, centx-ww//2:centx-ww//2+ww], to_paste[:,:,:3], where=(np.stack([to_paste[:,:,3]]*3,-1)!=0) )
 
             # information
             frame = cv2.putText(frame,f'{int(recorded_fps)} FPS',(0,14),cv2.FONT_HERSHEY_SIMPLEX,0.5,(255,255,255),1,cv2.LINE_AA)
@@ -225,6 +227,8 @@ if __name__ == "__main__":
                 set_image[:,:, 3] = init_mask
                 cv2.imwrite('outputs/output_mask.png', set_image)
                 cv2.imwrite('outputs/output_roi.png', set_image[y:y+h, x:x+w, :])
+                to_paste = set_image[y:y+h, x:x+w, :]
+                
             # focus control
             elif a == ord('s'):
                 FOCUS+=15
