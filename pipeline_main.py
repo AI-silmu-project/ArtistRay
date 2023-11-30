@@ -3,8 +3,6 @@ import cv2
 import numpy as np
 import torch
 import sys, os, time, subprocess
-import skimage
-from scipy import signal
 
 
 # for importing SiamMask -------------------------------------------------------
@@ -38,7 +36,7 @@ capture.set(cv2.CAP_PROP_FOCUS,FOCUS)
 last_fps_time = None
 frame_count = 0
 recorded_fps = 0
-opacity = 0.5
+opacity = 0.8
 
 def run_BLD(prompt: str, init_image_path: str, mask_path: str, output_path: str, batch_size: int = 3, ):
     print('Creating Images...')
@@ -48,7 +46,7 @@ def run_BLD(prompt: str, init_image_path: str, mask_path: str, output_path: str,
     return retcode
 
 class LowPassFilter(object):
-    def __init__(self, cut_off_freqency=5, ts= 1./30.):
+    def __init__(self, cut_off_freqency=5, ts= 1./20.):
         self.ts = ts
         self.cut_off_freqency = cut_off_freqency
         self.tau = self.get_tau()
@@ -75,10 +73,8 @@ if __name__ == "__main__":
     siammask = load_pretrain(siammask, 'SiamMask_DAVIS.pth')
     siammask.eval().to(device)
 
-    lpf1 = LowPassFilter()
-    lpf2 = LowPassFilter()
-    lpfx = LowPassFilter()
-    lpfy = LowPassFilter()
+    lpf = LowPassFilter()
+
     cv2.namedWindow("SiamMask", cv2.WINDOW_AUTOSIZE)
 
     selected = False
@@ -118,12 +114,13 @@ if __name__ == "__main__":
                     box = cv2.boxPoints(rect)
                     box = np.intp(box)
                     height,width = to_paste.shape[:2]
-                    src_pts = box.astype("float32")
+                    src_pts = box.astype(np.float32)
                     dst_pts = np.array([[0, 0],
                                         [width-1, 0],
                                         [width-1, height-1],
-                                        [0, height-1],], dtype="float32")
+                                        [0, height-1],], dtype=np.float32)
                     M = cv2.getPerspectiveTransform(dst_pts, src_pts)
+                    M = lpf.filter(M)
                     warped2 = cv2.warpPerspective(to_paste, M, (W,H),borderMode=cv2.BORDER_TRANSPARENT)
                     
                     np.copyto(frame, (frame*(1.-opacity) + warped2[:,:,:3]*opacity).astype(np.uint8), where=(np.stack([warped2[:,:,3]]*3,-1)>0) )
@@ -192,7 +189,7 @@ if __name__ == "__main__":
                 prompt = input('프롬프트를 입력해주세요: ')
                 run_BLD(prompt,'outputs/image_bldin.png','outputs/mask_bldin.png','outputs/image_bldout.png' , 1)
                 
-                bld_image = cv2.imread('outputs/image_bldout.png')
+                bld_image = cv2.resize(cv2.imread('outputs/image_bldout.png'),(CROP,CROP))
                 ref_frame = np.copy(frame)
                 frame[ymin:ymax, xmin:xmax] = bld_image
                 set_image = cv2.cvtColor(frame,cv2.COLOR_BGR2BGRA)
