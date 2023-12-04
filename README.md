@@ -1,4 +1,8 @@
-# 생채기
+# 생채기 - ArtistRay
+
+사용자로부터 흉터 위치를 입력받아 주변과 어울리는 흉터를 생성해주고, 움직였을 때 트래킹까지 되는 프로그램입니다.
+
+SiamMask를 이용해 Tracking & Segmentation을 진행하며, Blended Latent Diffusion을 활용해 Stable Diffusion 기반 타투를 생성합니다. 인식된 흉터의 rotated bbox를 따라 생성된 타투를 perspective transform하여 타투 이미지를 붙입니다.
 
 ## Hardware Preparation
 **연결된 웹캠과 웹캠 거치대, 단색 배경(A3용지, 데스크매트 등)이 필요합니다.**<br>
@@ -78,3 +82,6 @@ python main.py [CameraIndex]
 <div style="text-align:center"><img src="images/output_roi.png" style="width:50%"></div>
 
 모든 이미지는 `outputs` 폴더에 저장됩니다. 새로 이미지를 생성했을 때 기존에 생성한 이미지는 삭제되므로, 주의해주세요.
+
+다음과 같이 트래킹이 가능합니다. 
+<div style="display:inline; text-align:center"> <img src="images/cap1.png" style="width:45%"> <img src="images/cap2.png" style="width:45%"></div>
