@@ -4,6 +4,8 @@
 
 SiamMask를 이용해 Tracking & Segmentation을 진행하며, Blended Latent Diffusion을 활용해 Stable Diffusion 기반 타투를 생성합니다. 인식된 흉터의 rotated bbox를 따라 생성된 타투를 perspective transform하여 타투 이미지를 붙입니다.
 
+<div style="display:inline; text-align:center"> <img src="images/cap1.png" style="width:49%"> <img src="images/cap2.png" style="width:49%"></div>
+
 ## Hardware Preparation
 **연결된 웹캠과 웹캠 거치대, 단색 배경(A3용지, 데스크매트 등)이 필요합니다.**<br>
 권장사양: i5 10세대 이상 및 RTX 2060 이상
