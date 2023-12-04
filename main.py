@@ -44,7 +44,7 @@ opacity = 0.8
 
 def run_BLD(prompt: str, init_image_path: str, mask_path: str, output_path: str, batch_size: int = 3, ):
     print('Creating Images...')
-    retcode = subprocess.call(['python', './blended-latent-diffusion/scripts/text_editing_stable_diffusion.py', '--prompt', prompt, '--init_image', init_image_path, '--mask', mask_path, '--output_path', output_path, '--batch_size', str(batch_size)])
+    retcode = subprocess.call(['python', './BLD/scripts/text_editing_stable_diffusion.py', '--prompt', prompt, '--init_image', init_image_path, '--mask', mask_path, '--output_path', output_path, '--batch_size', str(batch_size)])
     if retcode == 0:
         print(f'Image Creation Successful: {batch_size} images, {output_path}')
     return retcode
