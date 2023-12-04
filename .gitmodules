@@ -1,6 +1,3 @@
 [submodule "SiamMask"]
 	path = SiamMask
 	url = https://github.com/AI-silmu-project/SiamMask
-[submodule "BLD"]
-	path = BLD
-	url = https://github.com/AI-silmu-project/blended-latent-diffusion

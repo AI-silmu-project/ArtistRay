@@ -13,6 +13,11 @@ from custom import Custom
 from tools.test import *
 # ------------------------------------------------------------------------------
 
+# for BlendedLatentDiffusion ---------------------------------------------------
+from BLD import BlendedLatnetDiffusion
+from PIL import Image
+# ------------------------------------------------------------------------------
+
 CAM_ID = 0
 if len(sys.argv) == 2:
     CAM_ID= int(sys.argv[1])
@@ -44,13 +49,18 @@ opacity = 0.8
 
 def run_BLD(prompt: str, init_image_path: str, mask_path: str, output_path: str, batch_size: int = 3, ):
     print('Creating Images...')
-    retcode = subprocess.call(['python', './BLD/scripts/text_editing_stable_diffusion.py', '--prompt', prompt, '--init_image', init_image_path, '--mask', mask_path, '--output_path', output_path, '--batch_size', str(batch_size)])
-    if retcode == 0:
-        print(f'Image Creation Successful: {batch_size} images, {output_path}')
-    return retcode
+    
+    results = bld.edit_image(
+        init_image_path,
+        mask_path,
+        prompts=[prompt] * batch_size,
+    )
+    results_flat = np.concatenate(results, axis=1)
+    Image.fromarray(results_flat).save(output_path)
+    print(f'Image Creation Successful: {batch_size} images, {output_path}')
 
 class LowPassFilter(object):
-    def __init__(self, cut_off_freqency=5, ts= 1./20.):
+    def __init__(self, cut_off_freqency=10, ts= 1./15.):
         self.ts = ts
         self.cut_off_freqency = cut_off_freqency
         self.tau = self.get_tau()
@@ -76,6 +86,9 @@ if __name__ == "__main__":
     siammask = Custom(anchors=cfg['anchors'])
     siammask = load_pretrain(siammask, 'config/SiamMask_DAVIS.pth')
     siammask.eval().to(device)
+
+    # Setup 
+    bld = BlendedLatnetDiffusion()
 
     lpf = LowPassFilter()
 
@@ -111,23 +124,26 @@ if __name__ == "__main__":
                 center = np.intp(location.reshape((-1, 2)).mean(0))
                 
                 if ref_frame is not None:
-                    loca = location.reshape(-1, 2)
+                    try:
+                        loca = location.reshape(-1, 2)
 
-                    cnt = location.reshape((-1, 1, 2))
-                    rect = cv2.minAreaRect(cnt)
-                    box = cv2.boxPoints(rect)
-                    box = np.intp(box)
-                    height,width = to_paste.shape[:2]
-                    src_pts = box.astype(np.float32)
-                    dst_pts = np.array([[0, 0],
-                                        [width-1, 0],
-                                        [width-1, height-1],
-                                        [0, height-1],], dtype=np.float32)
-                    M = cv2.getPerspectiveTransform(dst_pts, src_pts)
-                    M = lpf.filter(M)
-                    warped2 = cv2.warpPerspective(to_paste, M, (W,H),borderMode=cv2.BORDER_TRANSPARENT)
-                    
-                    np.copyto(frame, (frame*(1.-opacity) + warped2[:,:,:3]*opacity).astype(np.uint8), where=(np.stack([warped2[:,:,3]]*3,-1)>0) )
+                        cnt = location.reshape((-1, 1, 2))
+                        rect = cv2.minAreaRect(cnt)
+                        box = cv2.boxPoints(rect)
+                        box = np.intp(box)
+                        height,width = to_paste.shape[:2]
+                        src_pts = box.astype(np.float32)
+                        dst_pts = np.array([[0, 0],
+                                            [width-1, 0],
+                                            [width-1, height-1],
+                                            [0, height-1],], dtype=np.float32)
+                        M = cv2.getPerspectiveTransform(dst_pts, src_pts)
+                        M = lpf.filter(M)
+                        warped2 = cv2.warpPerspective(to_paste, M, (W,H),borderMode=cv2.BORDER_TRANSPARENT)
+                        
+                        np.copyto(frame, (frame*(1.-opacity) + warped2[:,:,:3]*opacity).astype(np.uint8), where=(np.stack([warped2[:,:,3]]*3,-1)>0) )
+                    except:
+                        pass
                 else:
                     frame[:, :, 2] = (mask > 0) * 255 + (mask == 0) * frame[:, :, 2]
                     cv2.polylines(frame, [np.intp(location).reshape((-1, 1, 2))], False, (150, 0, 0), 3)
@@ -190,7 +206,9 @@ if __name__ == "__main__":
                 assert bld_mask.shape == (CROP,CROP)
                 cv2.imwrite('outputs/image_bldin.png', frame[ymin:ymax, xmin:xmax])
                 cv2.imwrite('outputs/mask_bldin.png', bld_mask)
-                prompt = input('프롬프트를 입력해주세요: ')
+
+                prompt = input('\n프롬프트를 입력해주세요: ')
+
                 run_BLD(prompt,'outputs/image_bldin.png','outputs/mask_bldin.png','outputs/image_bldout.png' , 1)
                 
                 bld_image = cv2.resize(cv2.imread('outputs/image_bldout.png'),(CROP,CROP))
