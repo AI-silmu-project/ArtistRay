@@ -139,7 +139,7 @@ if __name__ == "__main__":
                                             [0, height-1],], dtype=np.float32)
                         M = cv2.getPerspectiveTransform(dst_pts, src_pts)
                         M = lpf.filter(M)
-                        warped2 = cv2.warpPerspective(to_paste, M, (W,H),borderMode=cv2.BORDER_TRANSPARENT)
+                        warped2 = cv2.warpPerspective(to_paste, M, (W,H),borderMode=cv2.BORDER_TRANSPARENT,flags=cv2.INTER_NEAREST)
                         
                         np.copyto(frame, (frame*(1.-opacity) + warped2[:,:,:3]*opacity).astype(np.uint8), where=(np.stack([warped2[:,:,3]]*3,-1)>0) )
                     except:
@@ -159,6 +159,7 @@ if __name__ == "__main__":
             a = cv2.waitKey(1) 
             if a == ord('c'): # capture and make images
                 ret, frame = capture.read()
+                
                 init_rect = cv2.selectROI('SiamMask', frame, False, False)
                 x, y, w, h = init_rect
                 if w == 0 and h == 0:
@@ -238,7 +239,21 @@ if __name__ == "__main__":
                 M_init = cv2.getPerspectiveTransform(src_pts, dst_pts)
                 to_paste = cv2.warpPerspective(set_image, M_init, (width,height))
             elif ref_frame is not None and a == ord('r'):
-                pass
+                prompt = input('\n프롬프트를 입력해주세요: ')
+
+                run_BLD(prompt,'outputs/image_bldin.png','outputs/mask_bldin.png','outputs/image_bldout.png' , 1)
+
+                bld_image = cv2.resize(cv2.imread('outputs/image_bldout.png'),(CROP,CROP))
+                frame = np.copy(ref_frame)
+                frame[ymin:ymax, xmin:xmax] = bld_image
+                set_image = cv2.cvtColor(frame,cv2.COLOR_BGR2BGRA)
+                set_image[:,:, 3] = init_mask
+
+                cv2.imwrite('outputs/output_overlay.png',frame)
+                cv2.imwrite('outputs/output_mask.png', set_image)
+                cv2.imwrite('outputs/output_roi.png', set_image[y:y+h, x:x+w, :])
+                to_paste = cv2.warpPerspective(set_image, M_init, (width,height))
+
                 
             # 초점
             elif a == ord('s'):
@@ -264,6 +279,14 @@ if __name__ == "__main__":
                     EXPO = -11
                 capture.set(cv2.CAP_PROP_EXPOSURE,EXPO)
             
+            elif a == ord('z'):
+                opacity -=0.1
+                if opacity <=0:
+                    opacity=0
+            elif a == ord('x'):
+                opacity +=0.1
+                if opacity>=1:
+                    opacity=1
             elif a == ord('q'):
                 break
 
