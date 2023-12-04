@@ -1,5 +1,13 @@
-torch
-cython
+Cython==3.0.5
+numpy
+requests
+torch==2.1.1
+matplotlib
+scipy
+pandas
+tqdm
+opencv_python
+torchvision
 diffusers
 transformers
 accelerate

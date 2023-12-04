@@ -1,6 +1,0 @@
-{
-    "python.analysis.extraPaths": [
-        "./SiamMask",
-        "./SiamMask/experiments/siammask_sharp"
-    ]
-}
