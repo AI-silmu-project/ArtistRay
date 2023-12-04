@@ -1,7 +1,9 @@
 # 생채기
 
-## Prepare
-**권장사양: i5 10세대 이상 및 RTX 2060 이상**<br>**PyTorch with CUDA를 반드시 시용해야 합나다.**
+## Hardware Preparation
+**연결된 웹캠과 웹캠 거치대, 단색 배경(A3용지, 데스크매트 등)이 필요합니다.**<br>
+권장사양: i5 10세대 이상 및 RTX 2060 이상
+
 
 ## Installation
 
